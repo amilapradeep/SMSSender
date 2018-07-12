@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json.Linq;
 
 namespace SMSSender
 {
@@ -17,6 +18,8 @@ namespace SMSSender
         public string SMSGatewayAuthCode { get; set; }
         public string MessageText { get; set; }
         public string LogFilePath { get; set; }
+
+        public bool SendUsingBell { get; set; }
 
         public SendSmsForm()
         {
@@ -49,6 +52,7 @@ namespace SMSSender
         {
             SMSGatewayUrl = ConfigurationManager.AppSettings["SMS_GatewayURL"];
             SMSGatewayAuthCode = ConfigurationManager.AppSettings["SMS_Gateway_AuthCode"];
+            SendUsingBell = Convert.ToBoolean(ConfigurationManager.AppSettings["SendUsingBell"]);
 
             if (string.IsNullOrEmpty(filePathTextBox.Text) || string.IsNullOrEmpty(messageTextTextBox.Text)
                 || string.IsNullOrEmpty(SMSGatewayUrl) || string.IsNullOrEmpty(SMSGatewayAuthCode))
@@ -91,8 +95,15 @@ namespace SMSSender
                     var currRow = dataSet.Tables[ind].Rows[row_no];
 
                     string phoneNumber = currRow[0].ToString();
-
-                    await SendMessageAsync(phoneNumber, MessageText);
+                    if (SendUsingBell)
+                    {
+                        await SendMessageBellAsync(phoneNumber, MessageText);
+                    }
+                    else
+                    {
+                        await SendMessageDialogAsync(phoneNumber, MessageText);
+                    }
+                    
 
                     row_no++;
                 }
@@ -111,8 +122,9 @@ namespace SMSSender
 
         }
 
-        private async Task SendMessageAsync(string Phone, string Message)
+        private async Task SendMessageDialogAsync(string Phone, string Message)
         {
+            //dialog service
             using (var stringContent = new StringContent("destination=" + Phone + "&q=" + SMSGatewayAuthCode + "&message=" + Message,
                                                             Encoding.UTF8, "application/x-www-form-urlencoded"))
             {
@@ -131,13 +143,49 @@ namespace SMSSender
                         {
                             LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " " + result);
                         }
-
                     }
                     catch (Exception ex)
                     {
                         LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " - Exception " + ex.Message);
-
                     }
+                }
+            }
+        }
+
+        private async Task SendMessageBellAsync(string Phone, string Message)
+        {
+            var BellSMSURL = ConfigurationManager.AppSettings["BellSMSURL"];
+            var BellSMSCompanyId = ConfigurationManager.AppSettings["BellSMSCompanyId"];
+            var BellSMSPassword = ConfigurationManager.AppSettings["BellSMSPassword"];
+
+            //http://119.235.1.63:4050/Sms.svc/SendSms?phoneNumber=[phoneNumber]&smsMessage=[smsMessage]&companyId=[companyId]&pword=[pword]
+           var smsCommand = string.Concat(BellSMSURL, "?phoneNumber=" , Phone , "&smsMessage=" , Message , "&companyId=", BellSMSCompanyId, "&pword=", BellSMSPassword);
+
+            using (var client = new HttpClient())
+            {
+                try
+                {
+                    var response = await client.GetAsync(smsCommand);
+                    var result = await response.Content.ReadAsStringAsync();
+
+                    JObject joResponse = JObject.Parse(result);
+
+                    string responseCode = joResponse["Status"].ToString();
+                    string responseData = joResponse["Data"].ToString();
+                    string responseId = joResponse["ID"].ToString();
+
+                    if (responseCode == "200")
+                    {
+                        LogInfo(Phone + " Sent at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + "ID : " + responseId);
+                    }
+                    else
+                    {
+                        LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " " + responseData + "ID : " + responseId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " - Exception " + ex.Message);
                 }
             }
         }
