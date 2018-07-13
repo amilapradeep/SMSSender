@@ -176,11 +176,11 @@ namespace SMSSender
 
                     if (responseCode == "200")
                     {
-                        LogInfo(Phone + " Sent at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + "ID : " + responseId);
+                        LogInfo(Phone + " Sent at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " ID : " + responseId);
                     }
                     else
                     {
-                        LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " " + responseData + "ID : " + responseId);
+                        LogInfo(Phone + " Failed at " + DateTime.Now.ToString("yyyy-dd-M HH-mm-ss") + " " + responseData + " ID : " + responseId);
                     }
                 }
                 catch (Exception ex)
